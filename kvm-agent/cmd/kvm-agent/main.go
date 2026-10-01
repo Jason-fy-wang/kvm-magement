@@ -1,0 +1,58 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/Jason-fy-wang/kvm-agent/internal/agent"
+)
+
+func main() {
+	listen := flag.String("listen", ":9090", "agent HTTP listen address")
+	agentID := flag.String("agent-id", "", "stable agent ID; defaults to hostname")
+	managerURL := flag.String("manager-url", "", "optional manager WebSocket URL for status events")
+	publicURL := flag.String("public-url", "", "agent HTTP URL reachable by the manager")
+	firecracker := flag.String("firecracker", "firecracker", "Firecracker executable")
+	dataDir := flag.String("data-dir", "/var/lib/kvm-agent", "directory for VM runtime state and sockets")
+	logLevel := flag.String("log-level", "info", "log level: debug, info, warn, or error")
+	flag.Parse()
+
+	resolvedID := *agentID
+	if resolvedID == "" {
+		resolvedID, _ = os.Hostname()
+	}
+
+	var level slog.LevelVar
+	switch *logLevel {
+	case "debug":
+		level.Set(slog.LevelDebug)
+	case "warn":
+		level.Set(slog.LevelWarn)
+	case "error":
+		level.Set(slog.LevelError)
+	default:
+		level.Set(slog.LevelInfo)
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: &level}))
+	srv := agent.NewServer(agent.Config{
+		ID:          resolvedID,
+		ListenAddr:  *listen,
+		ManagerURL:  *managerURL,
+		PublicURL:   *publicURL,
+		Firecracker: *firecracker,
+		RuntimeDir:  *dataDir,
+		Logger:      logger,
+	})
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	if err := srv.Run(ctx); err != nil {
+		logger.Error("agent stopped", "error", err)
+		os.Exit(1)
+	}
+}
