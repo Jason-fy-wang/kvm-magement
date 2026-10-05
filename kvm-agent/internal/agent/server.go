@@ -17,6 +17,7 @@ import (
 
 	"github.com/Jason-fy-wang/kvm-agent/internal/firecracker"
 	"github.com/gorilla/websocket"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 type Config struct {
@@ -81,8 +82,21 @@ func (s *Server) Run(ctx context.Context) error {
 	return nil
 }
 
+// @title Swagger API for KVM Agent
+// @version 1.0
+// @description This is a KVM Agent server.
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.url http://www.swagger.io/support
+// @contact.email
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @BasePath /v1
 func (s *Server) routes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /healthz", s.health)
+	mux.HandleFunc("GET /v1/healthz", s.health)
 	mux.HandleFunc("GET /v1/agent", s.agentInfo)
 	mux.HandleFunc("GET /v1/vms", s.listVMs)
 	mux.HandleFunc("POST /v1/vms", s.createVM)
@@ -94,20 +108,55 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/operations/{id}", s.getOperation)
 	mux.HandleFunc("GET /v1/vms/{id}/console", s.console)
 	mux.HandleFunc("GET /v1/events", s.events)
+
+	// swagger
+	mux.HandleFunc("/swagger/", httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"), // The url pointing to API definition
+	))
 }
 
+// health godoc
+// @Summary Health check
+// @Description Returns the health status of the KVM Agent.
+// @Tags Health
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router /healthz [get]
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// agentInfo godoc
+// @Summary Agent information
+// @Description Returns the agent ID, hostname, and version.
+// @Tags Agent
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router /agent [get]
 func (s *Server) agentInfo(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"id": s.cfg.ID, "hostname": s.cfg.ID, "version": "0.1.0"})
 }
 
+// listVMs godoc
+// @Summary List VMs
+// @Description Returns a list of all VMs managed by the agent.
+// @Tags VMs
+// @Produce json
+// @Success 200 {array} VM
+// @Router /vms [get]
 func (s *Server) listVMs(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.store.listVMs())
 }
 
+// getVM godoc
+// @Summary Get VM
+// @Description Returns the details of a specific VM by ID.
+// @Tags VMs
+// @Produce json
+// @Param id path string true "VM ID"
+// @Success 200 {object} VM
+// @Failure 404 {object} map[string]string
+// @Router /vms/{id} [get]
 func (s *Server) getVM(w http.ResponseWriter, r *http.Request) {
 	vm, err := s.store.getVM(r.PathValue("id"))
 	if err != nil {
@@ -117,6 +166,17 @@ func (s *Server) getVM(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, vm)
 }
 
+// createVM godoc
+// @Summary Create VM
+// @Description Creates a new VM with the specified configuration.
+// @Tags VMs
+// @Accept json
+// @Produce json
+// @Param vm body CreateVMRequest true "VM configuration"
+// @Success 202 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Router /vms [post]
 func (s *Server) createVM(w http.ResponseWriter, r *http.Request) {
 	var input CreateVMRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -137,7 +197,7 @@ func (s *Server) createVM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now().UTC()
-	vm := &VM{ID: input.ID, Name: input.Name, State: VMStateCreating, VCPUCount: input.VCPUCount, MemoryMiB: input.MemoryMiB, KernelPath: input.KernelPath, RootFSPath: input.RootFSPath, DiskPath: input.DiskPath, TapDevice: input.TapDevice, CreatedAt: now, UpdatedAt: now}
+	vm := &VM{ID: input.ID, Name: input.Name, State: VMStateCreating, VCPUCount: input.VCPUCount, MemoryMiB: input.MemoryMiB, KernelPath: input.KernelPath, RootFSPath: input.RootFSPath, DiskPath: input.DiskPath, TapDevice: input.TapDevice, GuestIP: input.GuestIP, GuestMAC: input.GuestMAC, GatewayIP: input.GatewayIP, Netmask: input.Netmask, CreatedAt: now, UpdatedAt: now}
 	s.store.putVM(vm)
 	op := s.newOperation(vm.ID, "create")
 	s.cfg.Logger.InfoContext(r.Context(), "VM create accepted", "vm_id", vm.ID, "operation_id", op.ID, "vcpu_count", vm.VCPUCount, "memory_mib", vm.MemoryMiB, "tap_device", vm.TapDevice)
@@ -163,6 +223,15 @@ func (s *Server) createVM(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]any{"operation_id": op.ID, "vm_id": vm.ID, "status": "queued"})
 }
 
+// deleteVM godoc
+// @Summary Delete VM
+// @Description Deletes an existing VM by ID.
+// @Tags VMs
+// @Produce json
+// @Param id path string true "VM ID"
+// @Success 202 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /vms/{id} [delete]
 func (s *Server) deleteVM(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	vm, err := s.store.getVM(id)
@@ -188,6 +257,16 @@ func (s *Server) deleteVM(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]any{"operation_id": op.ID, "vm_id": id, "status": op.Status})
 }
 
+// startVM godoc
+// @Summary Start VM
+// @Description Starts a stopped VM by ID.
+// @Tags VMs
+// @Produce json
+// @Param id path string true "VM ID"
+// @Success 202 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Router /vms/{id}/start [post]
 func (s *Server) startVM(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	vm, err := s.store.getVM(id)
@@ -224,6 +303,17 @@ func (s *Server) startVM(w http.ResponseWriter, r *http.Request) {
 	})
 	writeJSON(w, http.StatusAccepted, map[string]any{"operation_id": op.ID, "vm_id": id, "status": "queued"})
 }
+
+// stopVM godoc
+// @Summary Stop VM
+// @Description Stops a running VM by ID.
+// @Tags VMs
+// @Produce json
+// @Param id path string true "VM ID"
+// @Success 202 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Router /vms/{id}/stop [post]
 func (s *Server) stopVM(w http.ResponseWriter, r *http.Request) {
 	s.lifecycle(w, r, "stop", VMStateStopped, func(ctx context.Context, c *firecracker.Client) error {
 		shutdownCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
@@ -231,6 +321,17 @@ func (s *Server) stopVM(w http.ResponseWriter, r *http.Request) {
 		return c.GracefulShutdown(shutdownCtx)
 	})
 }
+
+// rebootVM godoc
+// @Summary Reboot VM
+// @Description Reboots a running VM by ID.
+// @Tags VMs
+// @Produce json
+// @Param id path string true "VM ID"
+// @Success 202 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Router /vms/{id}/reboot [post]
 func (s *Server) rebootVM(w http.ResponseWriter, r *http.Request) {
 	s.lifecycle(w, r, "reboot", VMStateRunning, func(ctx context.Context, c *firecracker.Client) error { return c.SendCtrlAltDel(ctx) })
 }
@@ -275,9 +376,10 @@ func (s *Server) startFirecracker(ctx context.Context, vm *VM) (*firecracker.Cli
 	s.cfg.Logger.DebugContext(ctx, "starting Firecracker", "vm_id", vm.ID, "binary", s.cfg.Firecracker, "socket", socketPath)
 	client, err := firecracker.StartProcess(ctx, s.cfg.Firecracker, socketPath)
 	if err != nil {
+		s.cfg.Logger.ErrorContext(ctx, "start process error:", err)
 		return nil, err
 	}
-	if err := client.Configure(ctx, firecracker.Config{VCPUCount: vm.VCPUCount, MemoryMiB: vm.MemoryMiB, KernelPath: vm.KernelPath, RootFSPath: vm.RootFSPath, DiskPath: vm.DiskPath, TapDevice: vm.TapDevice}); err != nil {
+	if err := client.Configure(ctx, firecracker.Config{ID: vm.ID, VCPUCount: vm.VCPUCount, MemoryMiB: vm.MemoryMiB, KernelPath: vm.KernelPath, RootFSPath: vm.RootFSPath, DiskPath: vm.DiskPath, TapDevice: vm.TapDevice, GuestMAC: vm.GuestMAC}); err != nil {
 		s.cfg.Logger.ErrorContext(ctx, "configure Firecracker failed", "vm_id", vm.ID, "socket", socketPath, "error", err)
 		_ = client.Shutdown()
 		return nil, err
@@ -285,6 +387,15 @@ func (s *Server) startFirecracker(ctx context.Context, vm *VM) (*firecracker.Cli
 	return client, nil
 }
 
+// getOperation godoc
+// @Summary Get Operation
+// @Description Returns the details of a specific operation by ID.
+// @Tags Operations
+// @Produce json
+// @Param id path string true "Operation ID"
+// @Success 200 {object} Operation
+// @Failure 404 {object} map[string]string
+// @Router /operations/{id} [get]
 func (s *Server) getOperation(w http.ResponseWriter, r *http.Request) {
 	op, err := s.store.getOperation(r.PathValue("id"))
 	if err != nil {
@@ -384,6 +495,16 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// console godoc
+// @Summary VM Console
+// @Description Opens a WebSocket connection to the console of a specific VM by ID.
+// @Tags VMs
+// @Produce json
+// @Param id path string true "VM ID"
+// @Success 101 {string} string "Switching Protocols"
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Router /vms/{id}/console [get]
 func (s *Server) console(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	s.clientsMu.Lock()

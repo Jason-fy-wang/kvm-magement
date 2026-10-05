@@ -23,6 +23,10 @@ type VM struct {
 	DiskPath       string    `json:"disk_path,omitempty"`
 	TapDevice      string    `json:"tap_device,omitempty"`
 	FirecrackerPID int       `json:"firecracker_pid,omitempty"`
+	GuestIP        string    `json:"guest_ip"`
+	GuestMAC       string    `json:"guest_mac"`
+	GatewayIP      string    `json:"gateway_ip"`
+	Netmask        string    `json:"netmask"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
@@ -36,6 +40,10 @@ type CreateVMRequest struct {
 	RootFSPath string `json:"rootfs_path"`
 	DiskPath   string `json:"disk_path"`
 	TapDevice  string `json:"tap_device"`
+	GuestIP    string `json:"guest_ip"`
+	GuestMAC   string `json:"guest_mac"`
+	GatewayIP  string `json:"gateway_ip"`
+	Netmask    string `json:"netmask"`
 }
 
 type Operation struct {

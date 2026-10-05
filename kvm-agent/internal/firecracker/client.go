@@ -16,12 +16,14 @@ import (
 )
 
 type Config struct {
+	ID         string
 	VCPUCount  int
 	MemoryMiB  int
 	KernelPath string
 	RootFSPath string
 	DiskPath   string
 	TapDevice  string
+	GuestMAC   string
 }
 
 type Client struct {
@@ -38,6 +40,8 @@ func StartProcess(ctx context.Context, binary, socketPath string) (*Client, erro
 	}
 	_ = os.Remove(socketPath)
 	cmd := exec.CommandContext(ctx, binary, "--api-sock", socketPath, "--enable-pci")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	consoleIn, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("create firecracker stdin: %w", err)
@@ -57,7 +61,39 @@ func StartProcess(ctx context.Context, binary, socketPath string) (*Client, erro
 		},
 	}, Timeout: 30 * time.Second}
 
+	startupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := waitForSocket(startupCtx, socketPath); err != nil {
+		_ = cmd.Process.Kill()
+		waitErr := cmd.Wait()
+		stderrText := bytes.TrimSpace(stderr.Bytes())
+		if len(stderrText) > 4096 {
+			stderrText = stderrText[len(stderrText)-4096:]
+		}
+		if len(stderrText) > 0 {
+			return nil, fmt.Errorf("firecracker API socket %s was not ready: %w; process_error=%v; stderr=%s", socketPath, err, waitErr, string(stderrText))
+		}
+		return nil, fmt.Errorf("firecracker API socket %s was not ready: %w; process_error=%v", socketPath, err, waitErr)
+	}
+
 	return client, nil
+}
+
+func waitForSocket(ctx context.Context, socketPath string) error {
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		conn, err := net.DialTimeout("unix", socketPath, 200*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func (c *Client) Configure(ctx context.Context, cfg Config) error {
@@ -67,6 +103,7 @@ func (c *Client) Configure(ctx context.Context, cfg Config) error {
 		body   any
 	}{
 		//ToDo: add output log for firecracker
+		{"PUT", "/logger", map[string]any{"log_path": "/tmp/log-" + cfg.ID, "level": "Debug", "show_level": true, "show_log_origin": true}},
 		{"PUT", "/machine-config", map[string]any{"vcpu_count": cfg.VCPUCount, "mem_size_mib": cfg.MemoryMiB}},
 		{"PUT", "/boot-source", map[string]any{"kernel_image_path": cfg.KernelPath, "boot_args": "console=ttyS0 reboot=k panic=1"}},
 		{"PUT", "/drives/rootfs", map[string]any{"drive_id": "rootfs", "path_on_host": cfg.RootFSPath, "is_root_device": true, "is_read_only": false}},
@@ -79,11 +116,15 @@ func (c *Client) Configure(ctx context.Context, cfg Config) error {
 		}{"PUT", "/drives/data", map[string]any{"drive_id": "data", "path_on_host": cfg.DiskPath, "is_root_device": false, "is_read_only": false}})
 	}
 	if cfg.TapDevice != "" {
+		network := map[string]any{"iface_id": "eth0", "host_dev_name": cfg.TapDevice}
+		if cfg.GuestMAC != "" {
+			network["guest_mac"] = cfg.GuestMAC
+		}
 		requests = append(requests, struct {
 			method string
 			path   string
 			body   any
-		}{"PUT", "/network-interfaces/eth0", map[string]any{"iface_id": "eth0", "host_dev_name": cfg.TapDevice}})
+		}{"PUT", "/network-interfaces/eth0", network})
 	}
 	for _, request := range requests {
 		if err := c.request(ctx, request.method, request.path, request.body); err != nil {

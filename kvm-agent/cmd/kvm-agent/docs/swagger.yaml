@@ -1,0 +1,395 @@
+basePath: /v1
+definitions:
+  agent.CreateVMRequest:
+    properties:
+      disk_path:
+        type: string
+      gateway_ip:
+        type: string
+      guest_ip:
+        type: string
+      guest_mac:
+        type: string
+      id:
+        type: string
+      kernel_path:
+        type: string
+      memory_mib:
+        type: integer
+      name:
+        type: string
+      netmask:
+        type: string
+      rootfs_path:
+        type: string
+      tap_device:
+        type: string
+      vcpu_count:
+        type: integer
+    type: object
+  agent.Operation:
+    properties:
+      created_at:
+        type: string
+      error:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      type:
+        type: string
+      updated_at:
+        type: string
+      vm_id:
+        type: string
+    type: object
+  agent.VM:
+    properties:
+      created_at:
+        type: string
+      disk_path:
+        type: string
+      firecracker_pid:
+        type: integer
+      gateway_ip:
+        type: string
+      guest_ip:
+        type: string
+      guest_mac:
+        type: string
+      id:
+        type: string
+      kernel_path:
+        type: string
+      memory_mib:
+        type: integer
+      name:
+        type: string
+      netmask:
+        type: string
+      rootfs_path:
+        type: string
+      state:
+        $ref: '#/definitions/agent.VMState'
+      tap_device:
+        type: string
+      updated_at:
+        type: string
+      vcpu_count:
+        type: integer
+    type: object
+  agent.VMState:
+    enum:
+    - creating
+    - stopped
+    - running
+    - stopping
+    - error
+    type: string
+    x-enum-varnames:
+    - VMStateCreating
+    - VMStateStopped
+    - VMStateRunning
+    - VMStateStopping
+    - VMStateError
+info:
+  contact:
+    name: API Support
+    url: http://www.swagger.io/support
+  description: This is a KVM Agent server.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Swagger API for KVM Agent
+  version: "1.0"
+paths:
+  /agent:
+    get:
+      description: Returns the agent ID, hostname, and version.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Agent information
+      tags:
+      - Agent
+  /healthz:
+    get:
+      description: Returns the health status of the KVM Agent.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - Health
+  /operations/{id}:
+    get:
+      description: Returns the details of a specific operation by ID.
+      parameters:
+      - description: Operation ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agent.Operation'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get Operation
+      tags:
+      - Operations
+  /vms:
+    get:
+      description: Returns a list of all VMs managed by the agent.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/agent.VM'
+            type: array
+      summary: List VMs
+      tags:
+      - VMs
+    post:
+      consumes:
+      - application/json
+      description: Creates a new VM with the specified configuration.
+      parameters:
+      - description: VM configuration
+        in: body
+        name: vm
+        required: true
+        schema:
+          $ref: '#/definitions/agent.CreateVMRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create VM
+      tags:
+      - VMs
+  /vms/{id}:
+    delete:
+      description: Deletes an existing VM by ID.
+      parameters:
+      - description: VM ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete VM
+      tags:
+      - VMs
+    get:
+      description: Returns the details of a specific VM by ID.
+      parameters:
+      - description: VM ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agent.VM'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get VM
+      tags:
+      - VMs
+  /vms/{id}/console:
+    get:
+      description: Opens a WebSocket connection to the console of a specific VM by
+        ID.
+      parameters:
+      - description: VM ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "101":
+          description: Switching Protocols
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: VM Console
+      tags:
+      - VMs
+  /vms/{id}/reboot:
+    post:
+      description: Reboots a running VM by ID.
+      parameters:
+      - description: VM ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Reboot VM
+      tags:
+      - VMs
+  /vms/{id}/start:
+    post:
+      description: Starts a stopped VM by ID.
+      parameters:
+      - description: VM ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Start VM
+      tags:
+      - VMs
+  /vms/{id}/stop:
+    post:
+      description: Stops a running VM by ID.
+      parameters:
+      - description: VM ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Stop VM
+      tags:
+      - VMs
+swagger: "2.0"

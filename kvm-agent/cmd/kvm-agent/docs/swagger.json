@@ -1,0 +1,593 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "This is a KVM Agent server.",
+        "title": "Swagger API for KVM Agent",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "API Support",
+            "url": "http://www.swagger.io/support"
+        },
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
+        "version": "1.0"
+    },
+    "basePath": "/v1",
+    "paths": {
+        "/agent": {
+            "get": {
+                "description": "Returns the agent ID, hostname, and version.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent"
+                ],
+                "summary": "Agent information",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/healthz": {
+            "get": {
+                "description": "Returns the health status of the KVM Agent.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Health check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/operations/{id}": {
+            "get": {
+                "description": "Returns the details of a specific operation by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Operations"
+                ],
+                "summary": "Get Operation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Operation ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agent.Operation"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/vms": {
+            "get": {
+                "description": "Returns a list of all VMs managed by the agent.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "VMs"
+                ],
+                "summary": "List VMs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/agent.VM"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new VM with the specified configuration.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "VMs"
+                ],
+                "summary": "Create VM",
+                "parameters": [
+                    {
+                        "description": "VM configuration",
+                        "name": "vm",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agent.CreateVMRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/vms/{id}": {
+            "get": {
+                "description": "Returns the details of a specific VM by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "VMs"
+                ],
+                "summary": "Get VM",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "VM ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agent.VM"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes an existing VM by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "VMs"
+                ],
+                "summary": "Delete VM",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "VM ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/vms/{id}/console": {
+            "get": {
+                "description": "Opens a WebSocket connection to the console of a specific VM by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "VMs"
+                ],
+                "summary": "VM Console",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "VM ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/vms/{id}/reboot": {
+            "post": {
+                "description": "Reboots a running VM by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "VMs"
+                ],
+                "summary": "Reboot VM",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "VM ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/vms/{id}/start": {
+            "post": {
+                "description": "Starts a stopped VM by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "VMs"
+                ],
+                "summary": "Start VM",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "VM ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/vms/{id}/stop": {
+            "post": {
+                "description": "Stops a running VM by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "VMs"
+                ],
+                "summary": "Stop VM",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "VM ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "agent.CreateVMRequest": {
+            "type": "object",
+            "properties": {
+                "disk_path": {
+                    "type": "string"
+                },
+                "gateway_ip": {
+                    "type": "string"
+                },
+                "guest_ip": {
+                    "type": "string"
+                },
+                "guest_mac": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "kernel_path": {
+                    "type": "string"
+                },
+                "memory_mib": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "netmask": {
+                    "type": "string"
+                },
+                "rootfs_path": {
+                    "type": "string"
+                },
+                "tap_device": {
+                    "type": "string"
+                },
+                "vcpu_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "agent.Operation": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "vm_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "agent.VM": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "disk_path": {
+                    "type": "string"
+                },
+                "firecracker_pid": {
+                    "type": "integer"
+                },
+                "gateway_ip": {
+                    "type": "string"
+                },
+                "guest_ip": {
+                    "type": "string"
+                },
+                "guest_mac": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "kernel_path": {
+                    "type": "string"
+                },
+                "memory_mib": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "netmask": {
+                    "type": "string"
+                },
+                "rootfs_path": {
+                    "type": "string"
+                },
+                "state": {
+                    "$ref": "#/definitions/agent.VMState"
+                },
+                "tap_device": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "vcpu_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "agent.VMState": {
+            "type": "string",
+            "enum": [
+                "creating",
+                "stopped",
+                "running",
+                "stopping",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "VMStateCreating",
+                "VMStateStopped",
+                "VMStateRunning",
+                "VMStateStopping",
+                "VMStateError"
+            ]
+        }
+    }
+}

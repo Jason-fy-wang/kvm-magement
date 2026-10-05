@@ -80,7 +80,7 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) routes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /healthz", s.health)
+	mux.HandleFunc("GET /api/v1/healthz", s.health)
 	mux.HandleFunc("GET /api/v1/agents", s.listAgents)
 	mux.HandleFunc("GET /api/v1/vms", s.listVMs)
 	mux.HandleFunc("POST /api/v1/vms", s.createVM)
