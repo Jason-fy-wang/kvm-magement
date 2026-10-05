@@ -1,6 +1,6 @@
 module github.com/Jason-fy-wang/kvm-manager
 
-go 1.23.2
+go 1.27.1
 
 require (
 	github.com/gorilla/websocket v1.5.3
