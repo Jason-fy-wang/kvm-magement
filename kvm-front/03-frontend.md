@@ -1,8 +1,8 @@
 # KVM MicroVM Management – Frontend Design
 
-**Status:** Draft v0.2 (POC) · **Based on:** `kvm-manager` at commit `95bf803` of `Jason-fy-wang/kvm-magement`
+**Status:** POC implementation · **Based on:** the current `kvm-manager` API in this repository
 
-Self-contained design for the web UI. The frontend does not exist in the repo yet; this document is written against the manager's real API.
+Frontend implementation notes for the manager API. The UI talks only to `kvm-manager`.
 
 **Context.** The system has three layers: frontend → center service (`kvm-manager`) → agent (`kvm-agent`, one per KVM host, runs Firecracker microVMs). The frontend talks **only** to the manager.
 
@@ -52,25 +52,25 @@ Base path `/api/v1`. No authentication yet.
 | Concern | Choice |
 |---|---|
 | Framework | React + TypeScript + Vite |
-| UI kit | Ant Design or MUI (tables, forms, modals) |
-| Server state | TanStack Query; events patch the cache |
-| Live updates | One native `WebSocket` to `/api/v1/events`, auto-reconnect with backoff |
-| Console | xterm.js attached to the console WebSocket |
-| API types | Hand-written until the manager publishes OpenAPI; then generated |
-| Tests | Vitest + Testing Library; Playwright smoke test |
+| Styling | Tailwind CSS plus the dashboard component stylesheet |
+| Server state | Typed fetch client and React state |
+| Live updates | Native `WebSocket` to `/api/v1/events`, reconnect with backoff and refresh on reconnect |
+| Operation status | Poll `GET /operations/{id}` every 2 seconds until terminal |
+| Console | Raw text sent and received over the console WebSocket |
+| API types | Hand-written in `src/api/types.ts` until the manager publishes OpenAPI |
+| Validation | `npm run build` (TypeScript check and Vite production build) |
 
 ---
 
 ## 4. Pages
 
-| Route | Page | Content |
+| View | Page | Content |
 |---|---|---|
-| `/` | Dashboard | Agents online/offline, VMs by state, operations in progress, recent failures |
-| `/agents` | Agents | Hostname, URL, status badge, vCPU free/total, disk free/total, last seen |
-| `/vms` | VMs | Table with filters (state, agent, name) and row actions |
-| `/vms/new` | Create VM | Form below |
-| `/vms/:id` | VM detail | Config, network, state, operations, actions, console tab |
-| `/operations` | Operations | Recent operations with status and errors (needs a list endpoint) |
+| Overview | Dashboard | Agent health, VM inventory, capacity, and current operations |
+| All VMs | VM view | Filter by state and search by VM name, ID, host, or guest IP |
+| Physical hosts | Agent view | Host status, vCPU availability, disk free space, and last heartbeat |
+| Operations | Operation view | Operations created in this browser session; the manager has no list endpoint |
+| VM detail | Drawer | Configuration, network, status, lifecycle actions, and console |
 
 ### Create VM form
 
@@ -84,7 +84,7 @@ Base path `/api/v1`. No authentication yet.
 | Root filesystem path | text or select | Path on the host |
 | Data disk path | text, optional | |
 | TAP device | text | Must already exist on the host |
-| Start after create | checkbox | Chains `start` |
+| Start after create | checkbox | Wait for create operation success, then call `start` |
 
 Guest IP, MAC, gateway and netmask are assigned by the manager and shown after creation; the form does not ask for them.
 
@@ -94,11 +94,11 @@ Guest IP, MAC, gateway and netmask are assigned by the manager and shown after c
 
 | State | Badge | Meaning |
 |---|---|---|
-| `creating` | blue, spinner | Operation running |
+| `creating` | amber | Operation running |
 | `stopped` | grey | Configured, not booted |
 | `running` | green | Booted |
 | `error` | red | Operation failed or process died; show the operation error |
-| `unknown` | amber | Planned: owning agent is offline |
+| `unknown` | amber | Manager-reported unknown state |
 | `deleted` | hidden | Filter out |
 
 Agent status: `online` green, `offline` red. Use text or an icon as well as colour.
@@ -121,20 +121,20 @@ Delete asks for confirmation, repeats the VM name, and states that disk files st
 
 ### Operation feedback
 
-1. An action returns `{operation_id}`; show a pending toast and a transitional badge.
-2. `operation.updated` events update the toast. If the socket is down, poll `GET /operations/{id}` every 2 s until terminal.
-3. On `failed`, show the operation's `error` text and a link to the VM detail.
+1. An action returns `{operation_id, vm_id, status}`; show a pending notification.
+2. Poll `GET /operations/{id}` every 2 s until `succeeded` or `failed`. Events trigger inventory refreshes; they do not reliably include the manager's operation ID.
+3. On failure, show the operation's plain-text `error`.
 
 ### Live updates
 
-- Open the events WebSocket once per session; patch the VM and agent caches from events.
+- Open the events WebSocket once per session; patch VM data from events.
 - On every reconnect refetch `/vms` and `/agents`, since missed events are not replayed.
 - Show a *live updates disconnected* banner while reconnecting.
 
 ### Console
 
 - Offer it only when the VM is `running`. The agent answers `409` if it no longer holds the VM process (for example after an agent restart); show "console not available".
-- Text frames in and out; xterm.js renders. Close the socket when the tab closes.
+- Raw text frames in and out. Close the socket when the drawer closes.
 - The console is the raw Firecracker stdin/stdout. A login prompt appears only if the guest image runs one on the serial port `ttyS0`.
 
 ---
@@ -142,21 +142,20 @@ Delete asks for confirmation, repeats the VM name, and states that disk files st
 ## 7. Code structure
 
 ```
-kvm-frontend/
+kvm-front/
   src/
-    api/         # fetch wrappers, types, plain-text error mapping
-    hooks/       # useEvents (WebSocket), useOperation, useVms, useAgents
-    components/  # StateBadge, ConfirmDialog, OperationToast, Console
-    pages/       # Dashboard, Agents, Vms, VmNew, VmDetail
-    utils/
-  tests/
+    api/         # typed manager client and API models
+    component/   # reusable VM, agent, dialog, status, and console UI
+    utils/       # shared formatting helpers
+    App.tsx      # screen composition, live events, and operation tracking
+    styles.css
 ```
 
 ---
 
 ## 8. Backend changes the UI needs
 
-| Need | Today | Request to the manager |
+| Need | Today | Future request to the manager |
 |---|---|---|
 | Same-origin or CORS | Neither | Serve `dist/` from the manager, or add configurable CORS |
 | Hide deleted VMs | Returned in lists | Filter, or support `?state=` |
@@ -181,13 +180,13 @@ kvm-frontend/
 
 ## 10. Build order
 
-1. Scaffold, API client, dev proxy.
-2. VM list, detail, actions with operation toasts.
-3. Create form with *Start after create*.
-4. Events WebSocket and cache patching.
-5. Agents page and dashboard.
-6. Console tab.
-7. Exec panel and login, once the manager provides them.
+1. Typed API client and Vite dev proxy.
+2. VM inventory, details, and lifecycle actions.
+3. Create form with optional *Start after create*.
+4. Reconnecting events WebSocket and operation polling.
+5. Agent overview and dashboard.
+6. Raw-text console.
+7. Operation history and user authentication require manager API support.
 
 Until the manager is ready for a feature, develop against a small mock server returning the shapes in section 2.
 

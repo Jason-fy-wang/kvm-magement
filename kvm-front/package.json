@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 8080",
+    "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "tsc -p tsconfig.app.json && vite build",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,html,scss}\"",
     "preview": "vite preview"
