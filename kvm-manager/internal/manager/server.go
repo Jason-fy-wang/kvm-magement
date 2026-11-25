@@ -408,17 +408,25 @@ func (s *Server) agentRequest(ctx context.Context, agent Agent, method, path str
 
 var wsUpgrader = websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 
+type Registration struct {
+	Type           string `json:"type"`
+	AgentID        string `json:"agent_id"`
+	Hostname       string `json:"hostname"`
+	URL            string `json:"url"`
+	VCPUTotal      int    `json:"vcpu_total"`
+	VCPUAvailable  int    `json:"vcpu_available"`
+	DiskTotalBytes int64  `json:"disk_total_bytes"`
+	DiskFreeBytes  int64  `json:"disk_free_bytes"`
+}
+
 func (s *Server) agentWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
 	defer conn.Close()
-	var registration struct {
-		Type, AgentID, Hostname, URL  string
-		VCPUTotal, VCPUAvailable      int
-		DiskTotalBytes, DiskFreeBytes int64
-	}
+	var registration Registration
+
 	if err := conn.ReadJSON(&registration); err != nil || registration.Type != "agent.register" || registration.AgentID == "" {
 		return
 	}

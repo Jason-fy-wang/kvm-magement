@@ -20,7 +20,7 @@ build: fmt  docs
 
 start:
 	@echo "Starting kvm-agent..."
-	./agent -firecracker /usr/local/bin/firecracker -log-level debug -listen :9090
+	./agent -firecracker /usr/local/bin/firecracker -log-level debug -manager-url ws://localhost:8080/ws/agents -public-url http://localhost:9090 -listen :9090
 
 clean:
 	rm -rf *.exe
