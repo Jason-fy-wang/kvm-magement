@@ -20,7 +20,7 @@ func TestServerSQLiteAndHealthEndpoints(t *testing.T) {
 		path string
 		want int
 	}{
-		{path: "/healthz", want: http.StatusOK},
+		{path: "/api/v1/healthz", want: http.StatusOK},
 		{path: "/api/v1/agents", want: http.StatusOK},
 		{path: "/api/v1/vms", want: http.StatusOK},
 	} {
